@@ -1,0 +1,60 @@
+---
+- name: Install and run cpuminer-scash on all miners
+  hosts: miners
+  become: yes
+  vars:
+    wallet: "scash1quw69mzcuz7zlt20wj367h4tc92c9ft88yw9rzt"
+    pool: "stratum+tcp://us.icminers.com:9100"
+    threads: "{{ ansible_processor_cores }}"
+    log_file: "~/miner.log"
+
+  tasks:
+    - name: Update system and install dependencies
+      apt:
+        name:
+          - git
+          - autoconf
+          - pkg-config
+          - g++
+          - make
+          - libcurl4-openssl-dev
+          - libjansson-dev
+          - libssl-dev
+        state: present
+        update_cache: yes
+
+    - name: Set hugepages for RandomX
+      sysctl:
+        name: vm.nr_hugepages
+        value: 1280
+        state: present
+        sysctl_set: yes
+        reload: yes
+
+    - name: Clone or update cpuminer-scash
+      git:
+        repo: https://github.com/scashnetwork/cpuminer-scash.git
+        dest: ~/cpuminer-scash
+        version: master
+        update: yes
+        force: yes
+
+    - name: Build cpuminer-scash
+      shell: |
+        cd ~/cpuminer-scash
+        make clean || true
+        ./autogen.sh
+        ./configure
+        make -j{{ threads }}
+      args:
+        executable: /bin/bash
+
+    - name: Kill any running miners
+      shell: pkill -f minerd || true
+
+    - name: Start miner in background
+      shell: |
+        cd ~/cpuminer-scash
+        nohup ./minerd -a randomx -o {{ pool }} -u {{ wallet }}.{{ inventory_hostname }} -p x --largepages --no-affinity -B > {{ log_file }} 2>&1 &
+      args:
+        executable: /bin/bash

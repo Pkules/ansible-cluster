@@ -1,0 +1,17 @@
+- name: Start cpuminer-scash on all nodes
+  hosts: miners
+  become: yes
+  tasks:
+    - name: Kill any running miners
+      shell: pkill -f minerd || true
+      ignore_errors: yes
+
+    - name: Start miner in background
+      shell: |
+        nohup ~/cpuminer-scash/minerd -a randomx \
+          -o stratum+tcp://us.icminers.com:9100 \
+          -u scash1quw69mzcuz7zlt20wj367h4tc92c9ft88yw9rzt.{{ inventory_hostname }} \
+          -p x --no-affinity -B &
+      args:
+        executable: /bin/bash
+

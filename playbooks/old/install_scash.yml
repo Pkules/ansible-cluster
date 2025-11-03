@@ -1,0 +1,73 @@
+---
+- name: Install and run cpuminer-scash on all miners
+  hosts: all
+  become: yes
+  vars:
+    wallet: "scash1quw69mzcuz7zlt20wj367h4tc92c9ft88yw9rzt"
+    pool: "stratum+tcp://na.rplant.xyz:17019"
+    miner_dir: "/root/cpuminer-scash"
+    log_file: "/root/miner.log"
+
+  tasks:
+
+    - name: Update system and install dependencies
+      apt:
+        update_cache: yes
+        name:
+          - git
+          - autoconf
+          - pkg-config
+          - g++
+          - make
+          - libcurl4-openssl-dev
+          - libjansson-dev
+          - libssl-dev
+        state: present
+
+    - name: Upgrade system packages (optional, avoid GLIBC issues)
+      apt:
+        upgrade: dist
+
+    - name: Set hugepages for RandomX
+      sysctl:
+        name: vm.nr_hugepages
+        value: 1280
+        state: present
+        reload: yes
+
+    - name: Remove any old cpuminer-scash directory
+      file:
+        path: "{{ miner_dir }}"
+        state: absent
+
+    - name: Clone cpuminer-scash repository
+      git:
+        repo: "https://github.com/scashnetwork/cpuminer-scash.git"
+        dest: "{{ miner_dir }}"
+        version: master
+        force: yes
+
+    - name: Ensure previous build artifacts are cleaned
+      shell: |
+        cd "{{ miner_dir }}"
+        make clean || true
+      args:
+        executable: /bin/bash
+
+    - name: Build cpuminer-scash from source
+      shell: |
+        cd "{{ miner_dir }}"
+        ./autogen.sh
+        ./configure
+        make -j$(nproc)
+      args:
+        creates: "{{ miner_dir }}/minerd"
+        executable: /bin/bash
+
+    - name: Start miner in background
+      shell: |
+        nohup "{{ miner_dir }}/minerd" -a randomx -o "{{ pool }}" \
+        -u "{{ wallet }}.{{ inventory_hostname }}" -p x --largepages --no-affinity -B \
+        > "{{ log_file }}" 2>&1 &
+      args:
+        executable: /bin/bash

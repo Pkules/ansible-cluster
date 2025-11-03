@@ -1,0 +1,77 @@
+---
+- name: Full Install cpuminer-scash
+  hosts: all
+  become: yes
+  vars:
+    wallet: "scash1quw69mzcuz7zlt20wj367h4tc92c9ft88yw9rzt"
+    pool: "stratum+tcp://us.icminers.com:9100"
+    threads: "{{ ansible_processor_vcpus }}"
+    log_file: "{{ ansible_env.HOME }}/miner.log"
+    hugepages: 1280
+
+  tasks:
+    - name: Update & upgrade apt packages
+      apt:
+        update_cache: yes
+        upgrade: dist
+        cache_valid_time: 3600
+
+    - name: Install required dependencies
+      apt:
+        name:
+          - git
+          - autoconf
+          - pkg-config
+          - g++
+          - make
+          - libcurl4-openssl-dev
+          - libjansson-dev
+          - libssl-dev
+        state: present
+
+    - name: Set hugepages for RandomX
+      sysctl:
+        name: vm.nr_hugepages
+        value: "{{ hugepages }}"
+        state: present
+        reload: yes
+
+    - name: Persist hugepages in sysctl.conf
+      lineinfile:
+        path: /etc/sysctl.conf
+        line: "vm.nr_hugepages={{ hugepages }}"
+        state: present
+
+    - name: Remove old cpuminer-scash folder if exists
+      file:
+        path: /root/cpuminer-scash
+        state: absent
+
+    - name: Clone cpuminer-scash repository
+      git:
+        repo: https://github.com/scashnetwork/cpuminer-scash.git
+        dest: "{{ ansible_env.HOME }}/cpuminer-scash"
+        update: yes
+        force: yes
+
+    - name: Build cpuminer-scash
+      shell: |
+        cd {{ ansible_env.HOME }}/cpuminer-scash
+        make clean || true
+        ./autogen.sh
+        ./configure
+        make -j{{ threads }}
+      args:
+        chdir: "{{ ansible_env.HOME }}/cpuminer-scash"
+
+    - name: Stop any running miners
+      shell: pkill -f minerd || true
+      ignore_errors: yes
+
+    - name: Start miner in background
+      shell: |
+        nohup {{ ansible_env.HOME }}/cpuminer-scash/minerd \
+        -a randomx -o {{ pool }} -u "{{ wallet }}.{{ inventory_hostname }}" \
+        -p x --largepages --no-affinity -B > {{ log_file }} 2>&1 &
+      args:
+        executable: /bin/bash

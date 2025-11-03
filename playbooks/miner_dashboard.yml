@@ -1,0 +1,39 @@
+---
+- name: Collect cpuminer-scash stats from all miners
+  hosts: all
+  gather_facts: no
+  become: yes
+
+  tasks:
+
+    - name: Check if minerd is running
+      shell: pgrep -a minerd || echo "not running"
+      register: minerd_process
+
+    - name: Read last 5 lines of miner.log
+      shell: tail -n 5 /root/miner.log
+      register: miner_log
+      ignore_errors: yes
+
+    - name: Get CPU usage of minerd
+      shell: ps -p $(pgrep minerd) -o %cpu,%mem,cmd
+      register: minerd_cpu
+      ignore_errors: yes
+
+    - name: Collect miner stats
+      set_fact:
+        miner_stats: |
+          Host: {{ inventory_hostname }}
+          Process: {{ minerd_process.stdout }}
+          CPU: {{ minerd_cpu.stdout }}
+          Log tail:
+          {{ miner_log.stdout }}
+
+- name: Display miner dashboard
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Show all miner stats
+      debug:
+        msg: "{{ hostvars[item].miner_stats }}"
+      loop: "{{ groups['all'] }}"

@@ -1,0 +1,26 @@
+---
+- name: Switch all cpuminer-scash miners to ICMiners pool
+  hosts: miners
+  become: yes
+
+  vars:
+    wallet: "scash1quw69mzcuz7zlt20wj367h4tc92c9ft88yw9rzt"
+    pool: "stratum+tcp://us.icminers.com:9100"
+    miner_dir: "~/cpuminer-scash"
+    log_file: "~/miner.log"
+
+  tasks:
+
+    - name: Kill any running miners
+      shell: pkill -f minerd || true
+      ignore_errors: yes
+
+    - name: Start miner with ICMiners pool
+      shell: |
+        nohup "{{ miner_dir }}/minerd" -a randomx \
+        -o "{{ pool }}" \
+        -u "{{ wallet }}.{{ inventory_hostname }}" \
+        -p x --largepages --no-affinity -B \
+        > "{{ log_file }}" 2>&1 &
+      args:
+        executable: /bin/bash

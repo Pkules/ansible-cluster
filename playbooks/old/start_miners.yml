@@ -1,0 +1,29 @@
+---
+- name: Deploy and start miner on all hosts
+  hosts: all
+  become: true
+  tasks:
+
+    - name: Ensure cpuminer-scash directory exists
+      file:
+        path: ~/cpuminer-scash
+        state: directory
+        mode: '0755'
+
+    - name: Copy miner binary to all nodes
+      copy:
+        src: /home/kipdoe/cpuminer-scash/minerd
+        dest: ~/cpuminer-scash/minerd
+        mode: '0755'
+
+    - name: Kill any running miners
+      shell: pkill -f minerd || true
+      ignore_errors: true
+
+    - name: Start miner in background
+      shell: |
+        nohup ~/cpuminer-scash/minerd -a randomx \
+        -o stratum+tcp://us.icminers.com:9100 \
+        -u scash1quw69mzcuz7zlt20wj367h4tc92c9ft88yw9rzt \
+        --no-affinity > /tmp/miner.log 2>&1 &
+

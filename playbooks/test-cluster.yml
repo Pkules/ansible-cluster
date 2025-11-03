@@ -1,0 +1,19 @@
+---
+- name: Test Cluster Connectivity
+  hosts: all
+  become: yes
+  tasks:
+
+    - name: Ping all hosts
+      ansible.builtin.ping:
+
+    - name: Update apt cache (Debian/Ubuntu)
+      ansible.builtin.apt:
+        update_cache: yes
+      when: ansible_os_family == "Debian"
+
+    - name: Install htop (example package)
+      ansible.builtin.apt:
+        name: htop
+        state: present
+      when: ansible_os_family == "Debian"

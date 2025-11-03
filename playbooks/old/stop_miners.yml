@@ -1,0 +1,9 @@
+---
+- name: Stop all miners
+  hosts: all
+  become: true
+  tasks:
+    - name: Stop any running miner processes
+      shell: pkill -f minerd >/dev/null 2>&1 || true
+      ignore_errors: true
+      changed_when: false
